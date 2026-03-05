@@ -1,0 +1,103 @@
+SELECT entity_id
+FROM states_meta
+WHERE entity_id LIKE 'sensor.%'
+  AND (entity_id LIKE '%thermokrasia%' OR entity_id LIKE '%ugrasia%')
+ORDER BY entity_id;
+
+
+entity_id
+=========
+sensor.exoterikos_temphum_1_b_thermokrasia
+sensor.exoterikos_temphum_1_b_ugrasia
+sensor.piso_mpalkoni_temphum_2_n_thermokrasia
+sensor.piso_mpalkoni_temphum_2_n_ugrasia
+sensor.sonoff_snzb_02d_thermokrasia
+sensor.sonoff_snzb_02d_thermokrasia_2
+sensor.sonoff_snzb_02d_ugrasia
+sensor.sonoff_snzb_02d_ugrasia_2
+
+
+WITH
+temp_salon AS (
+  SELECT start_ts, mean
+  FROM statistics s
+  JOIN statistics_meta m ON s.metadata_id = m.id
+  WHERE m.statistic_id = 'sensor.sonoff_snzb_02d_thermokrasia'
+),
+temp_kids AS (
+  SELECT start_ts, mean
+  FROM statistics s
+  JOIN statistics_meta m ON s.metadata_id = m.id
+  WHERE m.statistic_id = 'sensor.sonoff_snzb_02d_thermokrasia_2'
+),
+hum_salon AS (
+  SELECT start_ts, mean
+  FROM statistics s
+  JOIN statistics_meta m ON s.metadata_id = m.id
+  WHERE m.statistic_id = 'sensor.sonoff_snzb_02d_ugrasia'
+),
+hum_kids AS (
+  SELECT start_ts, mean
+  FROM statistics s
+  JOIN statistics_meta m ON s.metadata_id = m.id
+  WHERE m.statistic_id = 'sensor.sonoff_snzb_02d_ugrasia_2'
+),
+
+-- Εξωτερικός #1 (Β)
+temp_out_1_b AS (
+  SELECT start_ts, mean
+  FROM statistics s
+  JOIN statistics_meta m ON s.metadata_id = m.id
+  WHERE m.statistic_id = 'sensor.exoterikos_temphum_1_b_thermokrasia'
+),
+hum_out_1_b AS (
+  SELECT start_ts, mean
+  FROM statistics s
+  JOIN statistics_meta m ON s.metadata_id = m.id
+  WHERE m.statistic_id = 'sensor.exoterikos_temphum_1_b_ugrasia'
+),
+
+-- Εξωτερικός #2 (Πίσω μπαλκόνι, Ν)
+temp_out_2_n AS (
+  SELECT start_ts, mean
+  FROM statistics s
+  JOIN statistics_meta m ON s.metadata_id = m.id
+  WHERE m.statistic_id = 'sensor.piso_mpalkoni_temphum_2_n_thermokrasia'
+),
+hum_out_2_n AS (
+  SELECT start_ts, mean
+  FROM statistics s
+  JOIN statistics_meta m ON s.metadata_id = m.id
+  WHERE m.statistic_id = 'sensor.piso_mpalkoni_temphum_2_n_ugrasia'
+)
+
+SELECT
+  datetime(t.start_ts, 'unixepoch', 'localtime') AS time,
+
+  -- Εσωτερικά (°F -> °C)
+  ROUND((t.mean  - 32.0) * 5.0/9.0, 2)  AS temp_salon_c,
+  ROUND((tk.mean - 32.0) * 5.0/9.0, 2)  AS temp_kids_c,
+
+  -- Υγρασίες (%)
+  ROUND(hs.mean, 2) AS hum_salon,
+  ROUND(hk.mean, 2) AS hum_kids,
+
+  -- Εξωτερικά (°F -> °C)
+  ROUND((o1t.mean - 32.0) * 5.0/9.0, 2) AS temp_out_1_b_c,
+  ROUND(o1h.mean, 2)                     AS hum_out_1_b,
+
+  ROUND((o2t.mean - 32.0) * 5.0/9.0, 2) AS temp_out_2_n_c,
+  ROUND(o2h.mean, 2)                     AS hum_out_2_n
+
+FROM temp_salon t
+LEFT JOIN temp_kids   tk  ON t.start_ts = tk.start_ts
+LEFT JOIN hum_salon   hs  ON t.start_ts = hs.start_ts
+LEFT JOIN hum_kids    hk  ON t.start_ts = hk.start_ts
+
+LEFT JOIN temp_out_1_b o1t ON t.start_ts = o1t.start_ts
+LEFT JOIN hum_out_1_b  o1h ON t.start_ts = o1h.start_ts
+
+LEFT JOIN temp_out_2_n o2t ON t.start_ts = o2t.start_ts
+LEFT JOIN hum_out_2_n  o2h ON t.start_ts = o2h.start_ts
+
+ORDER BY t.start_ts;
